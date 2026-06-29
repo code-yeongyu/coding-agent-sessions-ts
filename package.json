@@ -19,14 +19,17 @@
     "opencode",
     "agent-sessions",
     "transcripts",
-    "cli"
+    "cli",
+    "skill"
   ],
   "bin": {
     "coding-agent-sessions": "./dist/cli.js"
   },
   "files": [
     "dist",
-    "README.md"
+    "skill",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
