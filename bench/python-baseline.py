@@ -184,12 +184,10 @@ def codex_results(root: Path, query: str) -> list[Result]:
 def run(argv: list[str]) -> int:
     args = parse_args(argv)
     results: list[Result] = []
-    for _pass_index in range(2):
-        results = []
-        if "claude" in args.platforms:
-            results.extend(claude_results(args.root, args.query))
-        if "codex" in args.platforms:
-            results.extend(codex_results(args.root, args.query))
+    if "claude" in args.platforms:
+        results.extend(claude_results(args.root, args.query))
+    if "codex" in args.platforms:
+        results.extend(codex_results(args.root, args.query))
     limited = results[: args.limit]
     print(json.dumps({"count": len(limited), "results": limited}, indent=2))
     return 0

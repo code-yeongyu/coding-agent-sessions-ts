@@ -1,4 +1,4 @@
-import type { Stats } from "node:fs"
+import type { Dirent, Stats } from "node:fs"
 import { existsSync, readdirSync, statSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
@@ -45,18 +45,17 @@ export function globFiles(
     if (current === undefined) {
       continue
     }
-    for (const entry of safeReadDir(current)) {
-      const path = join(current, entry)
-      const info = safeStat(path)
-      if (info === null) {
-        continue
-      }
-      if (info.isDirectory()) {
+    for (const entry of safeReadDirEntries(current)) {
+      const path = join(current, entry.name)
+      if (entry.isDirectory()) {
         stack.push(path)
         continue
       }
+      if (!entry.isFile()) {
+        continue
+      }
       const relative = path.slice(root.length + 1)
-      if (matcher(relative, entry)) {
+      if (matcher(relative, entry.name)) {
         result.push(path)
       }
     }
@@ -76,6 +75,17 @@ export function directFiles(root: string, matcher: (name: string) => boolean): r
 function safeReadDir(path: string): readonly string[] {
   try {
     return readdirSync(path)
+  } catch (error) {
+    if (error instanceof Error && "code" in error) {
+      return []
+    }
+    throw error
+  }
+}
+
+function safeReadDirEntries(path: string): readonly Dirent[] {
+  try {
+    return readdirSync(path, { withFileTypes: true })
   } catch (error) {
     if (error instanceof Error && "code" in error) {
       return []

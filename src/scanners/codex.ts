@@ -1,5 +1,5 @@
 import { join } from "node:path"
-import { DatabaseSync } from "node:sqlite"
+import type { DatabaseSync } from "node:sqlite"
 import { nickRole, spawnInfo } from "../content.js"
 import { existing, globFiles, homePath, recent } from "../fs.js"
 import { jsonMapFromUnknown, numberValue, text } from "../json.js"
@@ -12,7 +12,12 @@ const threadsSql =
 const legacyThreadsSql =
   "SELECT id, rollout_path, cwd, created_at, updated_at, model_provider, model, first_user_message, tokens_used FROM threads"
 
-export function scanCodex(extraRoots: readonly string[], rootsOnly = false): readonly Session[] {
+type Database = InstanceType<typeof DatabaseSync>
+
+export async function scanCodex(
+  extraRoots: readonly string[],
+  rootsOnly = false,
+): Promise<readonly Session[]> {
   const roots = rootsOnly
     ? existing(extraRoots)
     : existing([process.env["CODEX_HOME"] ?? "", homePath(".codex"), ...extraRoots])
@@ -33,14 +38,16 @@ export function scanCodex(extraRoots: readonly string[], rootsOnly = false): rea
       (_relative, name) => name.startsWith("rollout-") && name.endsWith(".jsonl"),
     ),
   ])
+  const dbSessions = await Promise.all(dbs.map((path) => codexDb(path)))
   return [
-    ...dbs.flatMap((path) => codexDb(path)),
+    ...dbSessions.flat(),
     ...recent(rollouts).map((path) => jsonlSession("codex", path, fallbackId(path, "rollout-"))),
   ]
 }
 
-function codexDb(path: string): readonly Session[] {
+async function codexDb(path: string): Promise<readonly Session[]> {
   try {
+    const { DatabaseSync } = await import("node:sqlite")
     const db = new DatabaseSync(path, { readOnly: true })
     try {
       const edges = spawnEdges(db)
@@ -54,7 +61,7 @@ function codexDb(path: string): readonly Session[] {
   }
 }
 
-function rowsFor(db: DatabaseSync): readonly JsonMap[] {
+function rowsFor(db: Database): readonly JsonMap[] {
   try {
     return db.prepare(threadsSql).all().flatMap(rowFromUnknown)
   } catch (_error) {
@@ -62,7 +69,7 @@ function rowsFor(db: DatabaseSync): readonly JsonMap[] {
   }
 }
 
-function spawnEdges(db: DatabaseSync): ReadonlyMap<string, string> {
+function spawnEdges(db: Database): ReadonlyMap<string, string> {
   try {
     const rows = db
       .prepare("SELECT child_thread_id, parent_thread_id FROM thread_spawn_edges")

@@ -62,16 +62,17 @@ pnpm e2e
 pnpm bench
 ```
 
-`pnpm bench` compares this Node implementation against a bundled Python baseline
-modeled on the original finder contract, using a generated representative fixture.
+`pnpm bench` compares the Node scanner implementation against a bundled Python
+baseline modeled on the original finder contract, using a generated representative
+fixture.
 
 Latest local benchmark from this setup:
 
 ```json
 {
-  "nodeMs": 188.92,
-  "pythonMs": 206.36,
-  "ratio": 1.09,
+  "nodeMs": 121.49,
+  "pythonMs": 126.90,
+  "ratio": 1.04,
   "nodeWins": true,
   "resultCount": 56
 }

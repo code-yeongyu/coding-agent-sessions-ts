@@ -2,6 +2,8 @@ import { execFileSync } from "node:child_process"
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { performance } from "node:perf_hooks"
+import { searchPayload } from "../dist/payloads.js"
+import { scan } from "../dist/scanners/index.js"
 
 const root = join(process.cwd(), "bench", "fixtures", "compare")
 const pythonCli = join(process.cwd(), "bench", "python-baseline.py")
@@ -51,19 +53,7 @@ const env = {
   OPENCODE_HOME: join(root, "opencode"),
 }
 
-const nodeCommand = [
-  "dist/cli.js",
-  "find",
-  query,
-  "--platform",
-  "codex",
-  "--platform",
-  "claude",
-  "--root",
-  root,
-  "--limit",
-  "100",
-]
+const nodeCommand = [query]
 const pythonCommand = [
   pythonCli,
   "find",
@@ -78,10 +68,30 @@ const pythonCommand = [
   "100",
 ]
 
-function run(command, args, cwd) {
+function runPython(command, args, cwd) {
   const start = performance.now()
   const output = execFileSync(command, args, { cwd, env, encoding: "utf8" })
   return { ms: performance.now() - start, payload: JSON.parse(output) }
+}
+
+async function runNode() {
+  const start = performance.now()
+  const sessions = await scan({
+    platforms: new Set(["codex", "claude"]),
+    roots: [root],
+    workers: 64,
+    rootsOnly: true,
+  })
+  const payload = searchPayload(
+    [...sessions].sort((left, right) =>
+      (right.created_at ?? "").localeCompare(left.created_at ?? ""),
+    ),
+    sessions,
+    nodeCommand,
+    100,
+    false,
+  )
+  return { ms: performance.now() - start, payload }
 }
 
 function median(values) {
@@ -94,8 +104,8 @@ const pythonRuns = []
 let nodeIds = []
 let pythonIds = []
 for (let round = 0; round < 5; round += 1) {
-  const nodeResult = run("node", nodeCommand, process.cwd())
-  const pythonResult = run("python3", pythonCommand, process.cwd())
+  const nodeResult = await runNode()
+  const pythonResult = runPython("python3", pythonCommand, process.cwd())
   nodeRuns.push(nodeResult.ms)
   pythonRuns.push(pythonResult.ms)
   nodeIds = nodeResult.payload.results.map((item) => `${item.platform}:${item.id}`).sort()
