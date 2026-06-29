@@ -1,0 +1,53 @@
+{
+  "name": "coding-agent-sessions-ts",
+  "version": "0.1.0",
+  "description": "Strict TypeScript port of the coding-agent session finder CLI.",
+  "type": "module",
+  "packageManager": "pnpm@11.3.0",
+  "license": "MIT",
+  "homepage": "https://github.com/code-yeongyu/coding-agent-sessions-ts#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/code-yeongyu/coding-agent-sessions-ts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/code-yeongyu/coding-agent-sessions-ts/issues"
+  },
+  "keywords": [
+    "codex",
+    "claude",
+    "opencode",
+    "agent-sessions",
+    "transcripts",
+    "cli"
+  ],
+  "bin": {
+    "coding-agent-sessions": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "e2e": "pnpm build && node scripts/e2e-smoke.mjs",
+    "format": "biome check --write .",
+    "lint": "biome check .",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "bench": "pnpm build && node bench/compare.mjs",
+    "cli": "pnpm build && node dist/cli.js"
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=11.3.0"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "@types/node": "^26.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

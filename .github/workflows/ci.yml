@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: pnpm check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Check
+        run: pnpm check
+
+      - name: E2E
+        run: pnpm e2e
+
+      - name: Workflow summary
+        if: always()
+        run: |
+          {
+            echo "## CI summary"
+            echo ""
+            echo "- Ref: \`${{ github.ref }}\`"
+            echo "- Job: \`${{ job.status }}\`"
+            echo "- Surface: strict TypeScript build, lint, unit tests, e2e CLI"
+          } >> "$GITHUB_STEP_SUMMARY"
