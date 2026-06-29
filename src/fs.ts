@@ -26,9 +26,11 @@ export function existing(paths: readonly string[]): readonly string[] {
 }
 
 export function recent(paths: readonly string[]): readonly string[] {
-  return [...paths]
-    .sort((left, right) => safeMtime(right) - safeMtime(left))
+  return paths
+    .map((path) => ({ path, mtime: safeMtime(path) }))
+    .sort((left, right) => right.mtime - left.mtime)
     .slice(0, maxPlatformFiles)
+    .map((item) => item.path)
 }
 
 export function globFiles(

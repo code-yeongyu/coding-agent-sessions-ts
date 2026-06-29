@@ -70,9 +70,9 @@ Latest local benchmark from this setup:
 
 ```json
 {
-  "nodeMs": 121.49,
-  "pythonMs": 126.90,
-  "ratio": 1.04,
+  "nodeMs": 61.22,
+  "pythonMs": 82.20,
+  "ratio": 1.34,
   "nodeWins": true,
   "resultCount": 56
 }

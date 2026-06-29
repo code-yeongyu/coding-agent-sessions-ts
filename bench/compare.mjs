@@ -1,7 +1,9 @@
-import { execFileSync } from "node:child_process"
+import { spawn } from "node:child_process"
+import { once } from "node:events"
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { performance } from "node:perf_hooks"
+import { createInterface } from "node:readline"
 import { searchPayload } from "../dist/payloads.js"
 import { scan } from "../dist/scanners/index.js"
 
@@ -54,24 +56,55 @@ const env = {
 }
 
 const nodeCommand = [query]
-const pythonCommand = [
-  pythonCli,
-  "find",
+const pythonRequest = {
   query,
-  "--platform",
-  "codex",
-  "--platform",
-  "claude",
-  "--root",
   root,
-  "--limit",
-  "100",
-]
+  platforms: ["codex", "claude"],
+  limit: 100,
+}
 
-function runPython(command, args, cwd) {
+function createPythonWorker() {
+  const child = spawn("python3", [pythonCli, "worker"], {
+    cwd: process.cwd(),
+    env,
+    stdio: ["pipe", "pipe", "pipe"],
+  })
+  let stderr = ""
+  child.stderr.setEncoding("utf8")
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk
+  })
+  const lines = createInterface({ crlfDelay: Infinity, input: child.stdout })
+  const iterator = lines[Symbol.asyncIterator]()
+  async function request(payload) {
+    if (!child.stdin.write(`${JSON.stringify(payload)}\n`)) {
+      await once(child.stdin, "drain")
+    }
+    const line = await iterator.next()
+    if (line.done) {
+      throw new Error(`Python worker closed stdout before replying: ${stderr}`)
+    }
+    return JSON.parse(line.value)
+  }
+  async function close() {
+    child.stdin.end()
+    const exited = await Promise.race([
+      once(child, "exit").then(() => true),
+      new Promise((resolve) => setTimeout(() => resolve(false), 1_000)),
+    ])
+    if (!exited) {
+      child.kill()
+      await once(child, "exit")
+    }
+    lines.close()
+  }
+  return { close, request }
+}
+
+async function runPython(worker) {
   const start = performance.now()
-  const output = execFileSync(command, args, { cwd, env, encoding: "utf8" })
-  return { ms: performance.now() - start, payload: JSON.parse(output) }
+  const payload = await worker.request(pythonRequest)
+  return { ms: performance.now() - start, payload }
 }
 
 async function runNode() {
@@ -103,13 +136,24 @@ const nodeRuns = []
 const pythonRuns = []
 let nodeIds = []
 let pythonIds = []
-for (let round = 0; round < 5; round += 1) {
-  const nodeResult = await runNode()
-  const pythonResult = runPython("python3", pythonCommand, process.cwd())
-  nodeRuns.push(nodeResult.ms)
-  pythonRuns.push(pythonResult.ms)
-  nodeIds = nodeResult.payload.results.map((item) => `${item.platform}:${item.id}`).sort()
-  pythonIds = pythonResult.payload.results.map((item) => `${item.platform}:${item.id}`).sort()
+const pythonWorker = createPythonWorker()
+try {
+  await runNode()
+  await runPython(pythonWorker)
+  for (let round = 0; round < 5; round += 1) {
+    const pythonFirst = round % 2 === 1
+    const pythonResult = pythonFirst ? await runPython(pythonWorker) : undefined
+    const nodeResult = await runNode()
+    const measuredPythonResult = pythonResult ?? (await runPython(pythonWorker))
+    nodeRuns.push(nodeResult.ms)
+    pythonRuns.push(measuredPythonResult.ms)
+    nodeIds = nodeResult.payload.results.map((item) => `${item.platform}:${item.id}`).sort()
+    pythonIds = measuredPythonResult.payload.results
+      .map((item) => `${item.platform}:${item.id}`)
+      .sort()
+  }
+} finally {
+  await pythonWorker.close()
 }
 
 if (JSON.stringify(nodeIds) !== JSON.stringify(pythonIds)) {

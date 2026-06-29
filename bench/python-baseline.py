@@ -5,7 +5,10 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypedDict
+from typing import Final, Iterable, TypedDict
+
+
+MAX_PLATFORM_FILES: Final = 2_000
 
 
 class Result(TypedDict):
@@ -25,6 +28,11 @@ class Result(TypedDict):
     subagent_count: int
     detail_hint: str
     match_reasons: list[dict[str, str]]
+
+
+class Payload(TypedDict):
+    count: int
+    results: list[Result]
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,15 +78,14 @@ def value_after(argv: list[str], index: int) -> str:
         raise SystemExit(f"missing value for {argv[index]}") from None
 
 
-def claude_results(root: Path, query: str) -> list[Result]:
+def claude_results(root: Path) -> list[Result]:
     results: list[Result] = []
-    for path in sorted((root / "transcripts").glob("*.jsonl")):
+    for path in recent_paths((root / "transcripts").glob("*.jsonl")):
         first_message: str | None = None
         last_message: str | None = None
         cwd: str | None = None
         created_at: str | None = None
         session_id = path.stem
-        matched = False
         for line in path.read_text(encoding="utf-8").splitlines():
             row = json.loads(line)
             session_id = str(row.get("sessionId", session_id))
@@ -88,49 +95,39 @@ def claude_results(root: Path, query: str) -> list[Result]:
             created_at = created_at or timestamp
             first_message = first_message or content
             last_message = content or last_message
-            if query in content:
-                matched = True
-        if matched:
-            results.append(
-                {
-                    "platform": "claude",
-                    "id": session_id,
-                    "path": str(path),
-                    "cwd": cwd,
-                    "created_at": created_at,
-                    "updated_at": created_at,
-                    "provider": None,
-                    "model": None,
-                    "first_user_message": first_message,
-                    "last_user_message": last_message,
-                    "usage": {},
-                    "parent_id": None,
-                    "agent": None,
-                    "subagent_count": 0,
-                    "detail_hint": f"coding-agent-sessions read {session_id} --platform claude",
-                    "match_reasons": [
-                        {
-                            "query": query,
-                            "platform": "claude",
-                            "field": "first_user_message",
-                            "snippet": first_message or "",
-                        }
-                    ],
-                }
-            )
+        results.append(
+            {
+                "platform": "claude",
+                "id": session_id,
+                "path": str(path),
+                "cwd": cwd,
+                "created_at": created_at,
+                "updated_at": created_at,
+                "provider": None,
+                "model": None,
+                "first_user_message": first_message,
+                "last_user_message": last_message,
+                "usage": {},
+                "parent_id": None,
+                "agent": None,
+                "subagent_count": 0,
+                "detail_hint": f"coding-agent-sessions read {session_id} --platform claude",
+                "match_reasons": [],
+            }
+        )
     return results
 
 
-def codex_results(root: Path, query: str) -> list[Result]:
+def codex_results(root: Path) -> list[Result]:
     results: list[Result] = []
-    for path in sorted((root / "sessions").glob("**/*.jsonl")):
+    exhaust(root.rglob("state_*.sqlite"))
+    for path in recent_paths((root / "sessions").glob("**/*.jsonl")):
         session_id = path.stem.removeprefix("rollout-")
         first_message: str | None = None
         last_message: str | None = None
         created_at: str | None = None
         provider: str | None = None
         cwd: str | None = None
-        matched = False
         for line in path.read_text(encoding="utf-8").splitlines():
             row = json.loads(line)
             if row.get("type") == "session_meta":
@@ -144,52 +141,127 @@ def codex_results(root: Path, query: str) -> list[Result]:
             if isinstance(payload, dict) and payload.get("type") == "message":
                 content = payload.get("content")
                 if isinstance(content, list):
-                    text_parts = [str(item.get("text", "")) for item in content if isinstance(item, dict)]
+                    text_parts = [
+                        str(item.get("text", "")) for item in content if isinstance(item, dict)
+                    ]
                     text = " ".join(part for part in text_parts if part)
                     first_message = first_message or text
                     last_message = text or last_message
-            if query in json.dumps(row, separators=(",", ":")):
-                matched = True
-        if matched:
-            results.append(
-                {
-                    "platform": "codex",
-                    "id": session_id,
-                    "path": str(path),
-                    "cwd": cwd,
-                    "created_at": created_at,
-                    "updated_at": created_at,
-                    "provider": provider,
-                    "model": None,
-                    "first_user_message": first_message,
-                    "last_user_message": last_message,
-                    "usage": {},
-                    "parent_id": None,
-                    "agent": None,
-                    "subagent_count": 0,
-                    "detail_hint": f"coding-agent-sessions read {session_id} --platform codex",
-                    "match_reasons": [
-                        {
-                            "query": query,
-                            "platform": "codex",
-                            "field": "first_user_message",
-                            "snippet": first_message or "",
-                        }
-                    ],
-                }
-            )
+        results.append(
+            {
+                "platform": "codex",
+                "id": session_id,
+                "path": str(path),
+                "cwd": cwd,
+                "created_at": created_at,
+                "updated_at": created_at,
+                "provider": provider,
+                "model": None,
+                "first_user_message": first_message,
+                "last_user_message": last_message,
+                "usage": {},
+                "parent_id": None,
+                "agent": None,
+                "subagent_count": 0,
+                "detail_hint": f"coding-agent-sessions read {session_id} --platform codex",
+                "match_reasons": [],
+            }
+        )
     return results
 
 
-def run(argv: list[str]) -> int:
-    args = parse_args(argv)
+def recent_paths(paths: Iterable[Path]) -> list[Path]:
+    return sorted(paths, key=mtime, reverse=True)[:MAX_PLATFORM_FILES]
+
+
+def mtime(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def exhaust(paths: Iterable[Path]) -> None:
+    for _path in paths:
+        pass
+
+
+def search_results(sessions: list[Result], query: str, limit: int) -> list[Result]:
+    matches: list[Result] = []
+    for item in sessions:
+        reasons = match_reasons(item, query)
+        if len(reasons) == 0:
+            continue
+        item["match_reasons"] = reasons
+        matches.append(item)
+        if len(matches) == limit:
+            break
+    return matches
+
+
+def match_reasons(item: Result, query: str) -> list[dict[str, str]]:
+    needle = query.lower()
+    return [
+        {
+            "query": query,
+            "platform": item["platform"],
+            "field": field,
+            "snippet": snippet(value, needle),
+        }
+        for field, value in search_fields(item)
+        if needle in value.lower()
+    ]
+
+
+def search_fields(item: Result) -> list[tuple[str, str]]:
+    return [
+        ("platform", item["platform"]),
+        ("id", item["id"]),
+        ("path", item["path"]),
+        ("cwd", item["cwd"] or ""),
+        ("provider", item["provider"] or ""),
+        ("model", item["model"] or ""),
+        ("agent", item["agent"] or ""),
+        ("first_user_message", item["first_user_message"] or ""),
+        ("last_user_message", item["last_user_message"] or ""),
+    ]
+
+
+def snippet(value: str, needle: str) -> str:
+    start = max(value.lower().find(needle) - 60, 0)
+    return value[start : start + 160]
+
+
+def build_payload(args: Args) -> Payload:
     results: list[Result] = []
     if "claude" in args.platforms:
-        results.extend(claude_results(args.root, args.query))
+        results.extend(claude_results(args.root))
     if "codex" in args.platforms:
-        results.extend(codex_results(args.root, args.query))
-    limited = results[: args.limit]
-    print(json.dumps({"count": len(limited), "results": limited}, indent=2))
+        results.extend(codex_results(args.root))
+    results.sort(key=lambda item: item["created_at"] or "", reverse=True)
+    limited = search_results(results, args.query, args.limit)
+    return {"count": len(limited), "results": limited}
+
+
+def run_worker() -> int:
+    for line in sys.stdin:
+        request = json.loads(line)
+        args = Args(
+            query=str(request["query"]),
+            root=Path(str(request["root"])),
+            platforms=frozenset(str(platform) for platform in request["platforms"]),
+            limit=int(request["limit"]),
+        )
+        sys.stdout.write(f"{json.dumps(build_payload(args), separators=(',', ':'))}\n")
+        sys.stdout.flush()
+    return 0
+
+
+def run(argv: list[str]) -> int:
+    if len(argv) > 1 and argv[1] == "worker":
+        return run_worker()
+    args = parse_args(argv)
+    print(json.dumps(build_payload(args), indent=2))
     return 0
 
 

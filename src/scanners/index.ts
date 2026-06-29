@@ -32,6 +32,7 @@ const filePlatformNames = [
 const sqlitePlatformNames = ["kilo-cli", "hermes", "goose", "crush", "cursor-cli", "zed"] as const
 const filePlatformNameSet: ReadonlySet<string> = new Set(filePlatformNames)
 const sqlitePlatformNameSet: ReadonlySet<string> = new Set(sqlitePlatformNames)
+const scannerCache = new Map<string, Promise<Scanner | null>>()
 
 export const defaultPlatforms: ReadonlySet<string> = new Set([
   "codex",
@@ -77,6 +78,16 @@ function linkageScore(session: Session): number {
 }
 
 async function scannerFor(platform: string): Promise<Scanner | null> {
+  const cached = scannerCache.get(platform)
+  if (cached !== undefined) {
+    return cached
+  }
+  const scanner = loadScanner(platform)
+  scannerCache.set(platform, scanner)
+  return scanner
+}
+
+async function loadScanner(platform: string): Promise<Scanner | null> {
   switch (platform) {
     case "codex": {
       const { scanCodex } = await import("./codex.js")
