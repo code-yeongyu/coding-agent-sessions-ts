@@ -3,7 +3,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { CliError } from "../src/arg-parser.js"
 import { getPayload, listPayload, parseArgs, searchPayload } from "../src/cli.js"
-import { scan } from "../src/scanners/index.js"
+import { defaultPlatforms, scan } from "../src/scanners/index.js"
 import type { JsonMap, Session } from "../src/types.js"
 
 const tempRoot = join(process.cwd(), ".tmp", "contract")
@@ -50,6 +50,39 @@ function fixtureRoot(): string {
         type: "message",
         role: "user",
         content: [{ type: "input_text", text: "ts-fixture-alpha rollout fix" }],
+      },
+    },
+  ])
+  writeJsonl(join(tempRoot, "sessions", "droid-project", "droid-alpha.jsonl"), [
+    {
+      type: "session_start",
+      id: "droid-alpha",
+      timestamp: "2026-06-11T00:00:00Z",
+      cwd: "/tmp/factory",
+    },
+    {
+      timestamp: "2026-06-11T00:00:01Z",
+      message: { role: "user", content: "ts-fixture-alpha factory droid" },
+    },
+  ])
+  mkdirSync(join(tempRoot, "sessions", "cli"), { recursive: true })
+  writeFileSync(
+    join(tempRoot, "sessions", "cli", "kiro-alpha.json"),
+    JSON.stringify({
+      session_id: "kiro-alpha",
+      cwd: "/tmp/kiro",
+      session_state: {
+        rts_model_state: { model_info: { model_id: "claude-test" } },
+        conversation_metadata: { user_turn_metadatas: [{}] },
+      },
+    }),
+  )
+  writeJsonl(join(tempRoot, "sessions", "cli", "kiro-alpha.jsonl"), [
+    {
+      kind: "Prompt",
+      data: {
+        content: [{ kind: "text", data: "ts-fixture-alpha kiro prompt" }],
+        meta: { timestamp: 1781123456 },
       },
     },
   ])
@@ -149,6 +182,24 @@ describe("Given the Python finder CLI contract", () => {
     expect(parsed.options.queries).toEqual(["deploy", "token usage"])
     expect([...parsed.options.platforms].sort()).toEqual(["aside", "codex"])
     expect(parsed.options.includeSubagents).toBe(true)
+  })
+
+  it("registers the Python finder platform surface additions", async () => {
+    const root = fixtureRoot()
+
+    const sessions = await scan({
+      platforms: new Set(["droid", "kiro"]),
+      roots: [root],
+      workers: 4,
+      rootsOnly: true,
+    })
+
+    expect(["droid", "kodu", "kiro"].every((platform) => defaultPlatforms.has(platform))).toBe(true)
+    expect(sessions.map((item) => item.platform).sort()).toEqual(["droid", "kiro"])
+    expect(sessions.map((item) => item.first_user_message).sort()).toEqual([
+      "ts-fixture-alpha factory droid",
+      "ts-fixture-alpha kiro prompt",
+    ])
   })
 
   it("rejects invalid numeric options", () => {

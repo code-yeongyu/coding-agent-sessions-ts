@@ -43,6 +43,12 @@ export const filePlatforms: readonly FilePlatform[] = [
   jsonlPlatform("openclaw", [homePath(".openclaw")], [".openclaw"], (_relative, name) =>
     name.endsWith(".jsonl"),
   ),
+  jsonlPlatform("droid", [homePath(".factory")], [".factory"], (relative, name) => {
+    const parts = relative.split("/")
+    return (
+      parts.length === 3 && parts[0] === "sessions" && parts[1] !== "cli" && name.endsWith(".jsonl")
+    )
+  }),
   jsonPlatform("amp", [homePath(".local", "share", "amp")], ["amp", ".local/share/amp"]),
   jsonlPlatform("qwen", [homePath(".qwen")], [".qwen"], (_relative, name) =>
     name.endsWith(".jsonl"),

@@ -20,6 +20,7 @@ const aliasMap: ReadonlyMap<string, string> = new Map(Object.entries(platformAli
 const filePlatformNames = [
   "senpi",
   "openclaw",
+  "droid",
   "amp",
   "qwen",
   "kimi",
@@ -40,6 +41,8 @@ export const defaultPlatforms: ReadonlySet<string> = new Set([
   "aside",
   "opencode",
   "aider",
+  "kodu",
+  "kiro",
   ...filePlatformNames,
   ...sqlitePlatformNames,
 ])
@@ -108,6 +111,14 @@ async function loadScanner(platform: string): Promise<Scanner | null> {
     case "aider": {
       const { scanAider } = await import("./generic.js")
       return (roots) => scanAider(roots)
+    }
+    case "kodu": {
+      const { scanKodu } = await import("./kodu.js")
+      return (roots, _workers, rootsOnly) => scanKodu(roots, rootsOnly)
+    }
+    case "kiro": {
+      const { scanKiro } = await import("./kiro.js")
+      return (roots, _workers, rootsOnly) => scanKiro(roots, rootsOnly)
     }
     default:
       return isFilePlatformName(platform)
