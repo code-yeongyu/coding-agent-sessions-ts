@@ -4,15 +4,15 @@ import { join } from "node:path"
 import { performance } from "node:perf_hooks"
 
 const root = join(process.cwd(), "bench", "fixtures", "compare")
-const pythonSkill = "/Users/yeongyu/.agents/skills/coding-agent-sessions"
-const pythonCli = join(pythonSkill, "scripts", "find-agent-sessions.py")
+const pythonCli = join(process.cwd(), "bench", "python-baseline.py")
 const query = "ts-bench-needle"
+const fixtureCount = 1_960
 
 rmSync(root, { force: true, recursive: true })
 mkdirSync(join(root, "transcripts"), { recursive: true })
 mkdirSync(join(root, "sessions", "2026", "06", "01"), { recursive: true })
 
-for (let index = 0; index < 700; index += 1) {
+for (let index = 0; index < fixtureCount; index += 1) {
   const content = index % 70 === 0 ? `${query} claude ${index}` : `ordinary claude ${index}`
   writeFileSync(
     join(root, "transcripts", `claude-${index}.jsonl`),
@@ -95,7 +95,7 @@ let nodeIds = []
 let pythonIds = []
 for (let round = 0; round < 5; round += 1) {
   const nodeResult = run("node", nodeCommand, process.cwd())
-  const pythonResult = run("python3", pythonCommand, pythonSkill)
+  const pythonResult = run("python3", pythonCommand, process.cwd())
   nodeRuns.push(nodeResult.ms)
   pythonRuns.push(pythonResult.ms)
   nodeIds = nodeResult.payload.results.map((item) => `${item.platform}:${item.id}`).sort()

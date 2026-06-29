@@ -62,18 +62,18 @@ pnpm e2e
 pnpm bench
 ```
 
-`pnpm bench` compares this Node implementation against the current Python skill
-on a generated representative fixture.
+`pnpm bench` compares this Node implementation against a bundled Python baseline
+modeled on the original finder contract, using a generated representative fixture.
 
 Latest local benchmark from this setup:
 
 ```json
 {
-  "nodeMs": 136.65,
-  "pythonMs": 161.96,
-  "ratio": 1.19,
+  "nodeMs": 188.92,
+  "pythonMs": 206.36,
+  "ratio": 1.09,
   "nodeWins": true,
-  "resultCount": 20
+  "resultCount": 56
 }
 ```
 

@@ -30,6 +30,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "pnpm build",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "e2e": "pnpm build && node scripts/e2e-smoke.mjs",
     "format": "biome check --write .",
