@@ -34,7 +34,7 @@
     "e2e": "pnpm build && node scripts/e2e-smoke.mjs",
     "format": "biome check --write .",
     "lint": "biome check .",
-    "test": "vitest run",
+    "test": "pnpm build && vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "bench": "pnpm build && node bench/compare.mjs",
     "cli": "pnpm build && node dist/cli.js"

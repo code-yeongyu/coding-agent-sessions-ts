@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
+import { CliError } from "../src/arg-parser.js"
 import { getPayload, listPayload, parseArgs, searchPayload } from "../src/cli.js"
 import { scan } from "../src/scanners/index.js"
 import type { JsonMap, Session } from "../src/types.js"
@@ -148,5 +149,11 @@ describe("Given the Python finder CLI contract", () => {
     expect(parsed.options.queries).toEqual(["deploy", "token usage"])
     expect([...parsed.options.platforms].sort()).toEqual(["aside", "codex"])
     expect(parsed.options.includeSubagents).toBe(true)
+  })
+
+  it("rejects invalid numeric options", () => {
+    expect(() => parseArgs(["list", "--limit", "nope"])).toThrow(CliError)
+    expect(() => parseArgs(["list", "--workers", "12x"])).toThrow(CliError)
+    expect(() => parseArgs(["list", "--limit", "0"])).toThrow(CliError)
   })
 })

@@ -55,11 +55,11 @@ function readOptions(command: "list" | "search" | "get", args: readonly string[]
         index += 2
         break
       case "--limit":
-        limit = Number.parseInt(requiredValue(args, index), 10)
+        limit = readPositiveInteger(args, index)
         index += 2
         break
       case "--workers":
-        workers = Math.max(Number.parseInt(requiredValue(args, index), 10), 1)
+        workers = readPositiveInteger(args, index)
         index += 2
         break
       case "--include-subagents":
@@ -141,6 +141,15 @@ function requiredValue(args: readonly string[], index: number): string {
     throw new CliError(`missing value for ${args[index] ?? "flag"}`)
   }
   return value
+}
+
+function readPositiveInteger(args: readonly string[], index: number): number {
+  const flag = args[index] ?? "flag"
+  const value = requiredValue(args, index)
+  if (!/^[1-9]\d*$/.test(value)) {
+    throw new CliError(`${flag} must be a positive integer`)
+  }
+  return Number.parseInt(value, 10)
 }
 
 function defaultWorkers(): number {
