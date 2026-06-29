@@ -56,16 +56,22 @@ async function codexDb(path: string): Promise<readonly Session[]> {
     } finally {
       db.close()
     }
-  } catch (_error) {
-    return []
+  } catch (error) {
+    if (error instanceof Error) {
+      return []
+    }
+    throw error
   }
 }
 
 function rowsFor(db: Database): readonly JsonMap[] {
   try {
     return db.prepare(threadsSql).all().flatMap(rowFromUnknown)
-  } catch (_error) {
-    return db.prepare(legacyThreadsSql).all().flatMap(rowFromUnknown)
+  } catch (error) {
+    if (error instanceof Error) {
+      return db.prepare(legacyThreadsSql).all().flatMap(rowFromUnknown)
+    }
+    throw error
   }
 }
 
@@ -82,8 +88,11 @@ function spawnEdges(db: Database): ReadonlyMap<string, string> {
         return child === null || parent === null ? [] : [[child, parent]]
       }),
     )
-  } catch (_error) {
-    return new Map()
+  } catch (error) {
+    if (error instanceof Error) {
+      return new Map()
+    }
+    throw error
   }
 }
 

@@ -43,8 +43,11 @@ function koduDb(path: string): readonly Session[] {
     } finally {
       db.close()
     }
-  } catch (_error) {
-    return []
+  } catch (error) {
+    if (error instanceof Error) {
+      return []
+    }
+    throw error
   }
 }
 

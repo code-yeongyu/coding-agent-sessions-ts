@@ -98,8 +98,11 @@ function messageTable(path: string, platform: string, table: string): readonly S
     } finally {
       db.close()
     }
-  } catch (_error) {
-    return []
+  } catch (error) {
+    if (error instanceof Error) {
+      return []
+    }
+    throw error
   }
 }
 
@@ -135,8 +138,11 @@ function cursorDb(path: string): readonly Session[] {
     } finally {
       db.close()
     }
-  } catch (_error) {
-    return []
+  } catch (error) {
+    if (error instanceof Error) {
+      return []
+    }
+    throw error
   }
 }
 
@@ -162,8 +168,11 @@ function zedDb(path: string): readonly Session[] {
     } finally {
       db.close()
     }
-  } catch (_error) {
-    return []
+  } catch (error) {
+    if (error instanceof Error) {
+      return []
+    }
+    throw error
   }
 }
 

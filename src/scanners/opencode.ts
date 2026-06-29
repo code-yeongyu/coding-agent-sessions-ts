@@ -53,16 +53,22 @@ function dbSessions(): readonly Session[] {
     } finally {
       db.close()
     }
-  } catch (_error) {
-    return []
+  } catch (error) {
+    if (error instanceof Error) {
+      return []
+    }
+    throw error
   }
 }
 
 function rows(db: DatabaseSync): readonly JsonMap[] {
   try {
     return db.prepare(sessionSql).all().flatMap(rowFromUnknown)
-  } catch (_error) {
-    return db.prepare(legacySql).all().flatMap(rowFromUnknown)
+  } catch (error) {
+    if (error instanceof Error) {
+      return db.prepare(legacySql).all().flatMap(rowFromUnknown)
+    }
+    throw error
   }
 }
 
@@ -182,7 +188,10 @@ function rowFromUnknown(value: unknown): readonly JsonMap[] {
 function opencodeText(args: readonly string[]): string | null {
   try {
     return execFileSync("opencode", args, { encoding: "utf8", timeout: 8_000 })
-  } catch (_error) {
-    return null
+  } catch (error) {
+    if (error instanceof Error) {
+      return null
+    }
+    throw error
   }
 }
