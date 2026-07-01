@@ -23,6 +23,9 @@ export type Session = {
   readonly usage: JsonMap
   readonly parent_id: string | null
   readonly agent: string | null
+  readonly event_search_text?: string
+  readonly event_search_text_lower?: string
+  readonly event_search_indexed?: true
 }
 
 export type ScanRequest = {
@@ -38,11 +41,13 @@ export type CliOptions = {
   readonly queries: readonly string[]
   readonly dateFrom: string | null
   readonly dateTo: string | null
-  readonly cwd: string | null
+  readonly cwd: readonly string[]
   readonly model: string | null
   readonly limit: number
   readonly workers: number
   readonly includeSubagents: boolean
+  readonly eventQueries: readonly string[]
+  readonly excerptChars: number
 }
 
 export type ParsedArgs = {
@@ -65,6 +70,19 @@ export type AnnotatedSession = Session & {
 
 export type SearchSession = AnnotatedSession & {
   readonly match_reasons: readonly MatchReason[]
+}
+
+export type ReadOptions = {
+  readonly eventQueries: readonly string[]
+  readonly excerptChars: number
+}
+
+export type EventMatch = {
+  readonly event_index: number
+  readonly event_type: string | null
+  readonly timestamp: string | null
+  readonly query: string
+  readonly snippet: string
 }
 
 export type ListPayload = {
@@ -91,6 +109,7 @@ export type GetPayload = {
       readonly last_user_message: string
     }
     readonly events: readonly Json[]
+    readonly matched_events: readonly EventMatch[]
     readonly subagents: readonly AnnotatedSession[]
     readonly detail_hint: string
   }[]

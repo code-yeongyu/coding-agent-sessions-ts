@@ -39,7 +39,7 @@ When installed as a package or global tool, use the binary directly:
 coding-agent-sessions list --limit 20
 coding-agent-sessions find "commit" --from 7d --platform codex --platform opencode
 coding-agent-sessions find --query "deploy" --query "token usage" --workers 64
-coding-agent-sessions read <session-id>
+coding-agent-sessions read <session-id> --grep "find-agent-sessions.py"
 ```
 
 `find` is an alias for `search`; `read` is an alias for `get`.
@@ -104,7 +104,14 @@ Every result includes:
 - `detail_hint`
 
 Search results also include `match_reasons`, with the query, platform, field,
-and snippet that caused the match.
+and snippet that caused the match. JSONL-backed sessions search redacted event
+text by default, so tool calls and transcript body text can match even when the
+prompt preview does not.
+
+`read/get --grep TEXT` returns concise transcript matches in `matched_events`
+instead of dumping the full `events` array. Each match includes `event_index`,
+`event_type`, `timestamp`, `query`, and a bounded redacted `snippet`. Normal
+`read/get` without `--grep` keeps the existing full `events` output.
 
 ## Filters
 
@@ -112,7 +119,8 @@ and snippet that caused the match.
 coding-agent-sessions list --platform codex --from 7d --limit 20
 coding-agent-sessions find --query "deploy" --query "token usage" --workers 64
 coding-agent-sessions find "proxy" --platform openclaw --platform droid --platform amp
-coding-agent-sessions read <session-id> --platform codex
+coding-agent-sessions find "deploy" --cwd sionicai --cwd storm-cli
+coding-agent-sessions read <session-id> --platform codex --grep "find-agent-sessions.py"
 ```
 
 Useful flags:
@@ -122,12 +130,14 @@ Useful flags:
 | `--platform` | Repeatable platform filter. Use one flag per platform. |
 | `--root` | Extra transcript root to scan. Repeatable. |
 | `--from`, `--to` | Date bounds such as `2026-06-29`, `2026-06`, `today`, or `7d`. |
-| `--cwd` | Working-directory substring filter. |
+| `--cwd` | Repeatable working-directory substring filter. Repeated values are ORed. |
 | `--model` | Model substring filter. |
 | `--limit` | Maximum result count. |
 | `--query` | Repeatable query lane for multi-phrase searches. |
 | `--workers` | Parallel worker count for broad scans. |
 | `--include-subagents` | Include child sessions as standalone results. |
+| `--grep` | `read/get` only: repeatable event-text query for concise `matched_events`. |
+| `--excerpt-chars` | `read/get --grep` snippet width. Default: 240. |
 
 Comma-separated platform values intentionally fail; use repeated `--platform`
 flags so the command remains unambiguous.
@@ -148,9 +158,13 @@ store.
 
 ## Troubleshooting
 
-- Set `CODEX_HOME`, `OPENCODE_HOME`, `HOME`, or `APPDATA` when scanning isolated
-  stores or fixtures.
+- Codex scans `CODEX_HOME`, `~/.codex`, and known GUI/remote profile homes such
+  as `~/.codex-local-gui-cli-remote`, `~/.codex-gui-cli-remote`, and
+  `~/.codex-gui-cli` when they exist. Set `CODEX_HOME`, `OPENCODE_HOME`, `HOME`,
+  or `APPDATA` when scanning isolated stores or fixtures.
 - Use `--root <path>` for nonstandard transcript directories.
 - Add `--include-subagents` when delegated work may live only in child sessions.
+- Use `read <id> --grep <text>` when a full transcript is too large and you only
+  need matching event snippets.
 - If the skill wrapper cannot find the repository, check the installed skill's
   `.repo-root` file and make sure the repository has been built.

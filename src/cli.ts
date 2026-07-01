@@ -50,7 +50,12 @@ export async function run(args: readonly string[]): Promise<number> {
     )
     return 0
   }
-  emit(getPayload(sessions, parsed.rest))
+  emit(
+    getPayload(sessions, parsed.rest, {
+      eventQueries: parsed.options.eventQueries,
+      excerptChars: parsed.options.excerptChars,
+    }),
+  )
   return 0
 }
 
@@ -61,7 +66,12 @@ function filterSessions(sessions: readonly Session[], opts: CliOptions): readonl
     const stamp = parseStamp(item.created_at)
     if (start !== null && stamp !== null && stamp < start) return false
     if (end !== null && stamp !== null && stamp >= end) return false
-    if (opts.cwd !== null && !(item.cwd ?? "").toLowerCase().includes(opts.cwd)) return false
+    if (
+      opts.cwd.length > 0 &&
+      !opts.cwd.some((cwd) => (item.cwd ?? "").toLowerCase().includes(cwd))
+    ) {
+      return false
+    }
     if (opts.model !== null && !(item.model ?? "").toLowerCase().includes(opts.model)) return false
     return true
   })
@@ -79,7 +89,7 @@ function requireValues(values: readonly string[], message: string): void {
 
 function usage(): void {
   process.stdout.write(
-    "Usage: coding-agent-sessions list|find|search|read|get [query|ids...] [--query TEXT ...] [--platform NAME ...] [--root PATH] [--from DATE] [--to DATE] [--cwd TEXT] [--model TEXT] [--limit N] [--workers N] [--include-subagents]\n",
+    "Usage: coding-agent-sessions list|find|search|read|get [query|ids...] [--query TEXT ...] [--platform NAME ...] [--root PATH] [--from DATE] [--to DATE] [--cwd TEXT ...] [--model TEXT] [--limit N] [--workers N] [--include-subagents] [--grep TEXT ...] [--excerpt-chars N]\n",
   )
 }
 

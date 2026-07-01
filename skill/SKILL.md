@@ -18,7 +18,8 @@ Run the wrapper from this skill directory:
 scripts/find-agent-sessions list --limit 20
 scripts/find-agent-sessions find "commit" --from 7d --platform codex --platform opencode
 scripts/find-agent-sessions find --query "deploy" --query "token usage" --workers 64
-scripts/find-agent-sessions read <session-id> --platform codex
+scripts/find-agent-sessions find "deploy" --cwd sionicai --cwd storm-cli
+scripts/find-agent-sessions read <session-id> --platform codex --grep "find-agent-sessions.py"
 ```
 
 `find` is an alias for `search`; `read` is an alias for `get`.
@@ -47,6 +48,12 @@ Read promising hits before making claims:
 scripts/find-agent-sessions read <session-id> --platform <platform>
 ```
 
+When the full transcript is too large, read only matching event snippets:
+
+```bash
+scripts/find-agent-sessions read <session-id> --platform codex --grep "find-agent-sessions.py"
+```
+
 ## Output Contract
 
 The CLI prints JSON. Results include:
@@ -67,6 +74,12 @@ The CLI prints JSON. Results include:
 | `detail_hint` | Ready-to-run read command. |
 | `match_reasons` | Search-only query/field/snippet explanations. |
 
+Search includes redacted JSONL event text by default, so tool calls and
+transcript body text can match even when prompt previews do not. `read/get
+--grep` returns `matched_events` with `event_index`, `event_type`, `timestamp`,
+`query`, and a bounded redacted `snippet`; grep-mode leaves `events` empty while
+normal `read/get` keeps full events.
+
 ## Filters
 
 | Filter | Meaning |
@@ -74,12 +87,14 @@ The CLI prints JSON. Results include:
 | `--platform` | Repeatable platform filter; pass one platform per flag. |
 | `--root` | Extra root to scan; repeatable. |
 | `--from`, `--to` | Date bounds: `YYYY-MM-DD`, `YYYY-MM`, `YYYY`, `today`, `yesterday`, or `7d`. |
-| `--cwd` | Working-directory substring. |
+| `--cwd` | Working-directory substring; repeatable values are ORed. |
 | `--model` | Model substring. |
 | `--limit` | Maximum results. |
 | `--query` | Repeatable query lane. |
 | `--workers` | Parallel worker count. |
 | `--include-subagents` | Include child sessions as standalone results. |
+| `--grep` | `read/get` only: repeatable event-text query for concise `matched_events`. |
+| `--excerpt-chars` | `read/get --grep` snippet width. Default: 240. |
 
 Use repeated `--platform` flags. Comma-separated platform values intentionally
 fail because they hide mistakes.
@@ -95,8 +110,9 @@ source exposes it.
 
 | Problem | Fix |
 | --- | --- |
-| Missing Codex sessions | Set `CODEX_HOME` or pass `--root /path/to/.codex`. |
+| Missing Codex sessions | Codex scans `CODEX_HOME`, `~/.codex`, `~/.codex-local-gui-cli-remote`, `~/.codex-gui-cli-remote`, and `~/.codex-gui-cli` when present. Set `CODEX_HOME` or pass `--root /path/to/.codex` for isolated stores. |
 | Missing OpenCode sessions | Set `OPENCODE_HOME` or pass the storage root. |
 | Missing Claude sessions | Pass the relevant `~/.claude/projects` or transcript root. |
+| Full `read` output is too large | Use `read <session-id> --grep <text>` to return bounded event snippets. |
 | Wrapper cannot find the CLI | Check `.repo-root` in this skill directory and run `pnpm install && pnpm build` in that repository. |
 | Search is slow | Narrow platforms, add date/cwd filters, or raise/lower `--workers` for the machine. |

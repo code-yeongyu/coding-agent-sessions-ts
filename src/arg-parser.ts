@@ -23,12 +23,14 @@ function readOptions(command: "list" | "search" | "get", args: readonly string[]
   const queries: string[] = []
   const roots: string[] = []
   const platforms: string[] = []
+  const cwd: string[] = []
+  const eventQueries: string[] = []
   let dateFrom: string | null = null
   let dateTo: string | null = null
-  let cwd: string | null = null
   let model: string | null = null
   let limit = 20
   let workers = defaultWorkers()
+  let excerptChars = 240
   let includeSubagents = false
   for (let index = 1; index < args.length; ) {
     const next = parseOption(args, index, { queries, roots, platforms })
@@ -47,11 +49,19 @@ function readOptions(command: "list" | "search" | "get", args: readonly string[]
         index += 2
         break
       case "--cwd":
-        cwd = requiredValue(args, index).toLowerCase()
+        cwd.push(requiredValue(args, index).toLowerCase())
+        index += 2
+        break
+      case "--grep":
+        eventQueries.push(requiredValue(args, index))
         index += 2
         break
       case "--model":
         model = requiredValue(args, index).toLowerCase()
+        index += 2
+        break
+      case "--excerpt-chars":
+        excerptChars = readPositiveInteger(args, index)
         index += 2
         break
       case "--limit":
@@ -84,6 +94,8 @@ function readOptions(command: "list" | "search" | "get", args: readonly string[]
       limit,
       workers,
       includeSubagents,
+      eventQueries,
+      excerptChars,
     },
     rest,
   }
@@ -127,11 +139,13 @@ function baseOptions(): ParsedArgs["options"] {
     queries: [],
     dateFrom: null,
     dateTo: null,
-    cwd: null,
+    cwd: [],
     model: null,
     limit: 20,
     workers: defaultWorkers(),
     includeSubagents: false,
+    eventQueries: [],
+    excerptChars: 240,
   }
 }
 

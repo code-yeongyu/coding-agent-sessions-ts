@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs"
 import { nickRole, spawnInfo, stemId } from "../content.js"
+import { redactSensitiveText } from "../event-text.js"
 import { fileTime } from "../time.js"
 import type { Json, MutableJsonMap, Session } from "../types.js"
 
@@ -15,7 +16,10 @@ export function jsonlSession(platform: string, path: string, fallbackId: string)
   let created: string | null = null
   let updated: string | null = null
   const usage: MutableJsonMap = {}
-  for (const data of readJsonlRecords(path)) {
+  const eventTextParts: string[] = []
+  const promptTextParts: string[] = []
+  for (const entry of readJsonlRecords(path)) {
+    const data = entry.record
     const eventType = stringValue(data["type"])
     id =
       stringValue(data["sessionId"]) ??
@@ -45,9 +49,15 @@ export function jsonlSession(platform: string, path: string, fallbackId: string)
     if (prompt !== "") {
       firstUser ||= prompt
       lastUser = prompt
+      promptTextParts.push(entry.text)
+    }
+    if (prompt === "" && eventType !== "session_meta") {
+      eventTextParts.push(redactSensitiveText(entry.text))
     }
     mergeUsageRecord(usage, recordValue(message["usage"]) ?? recordValue(data["usage"]))
   }
+  eventTextParts.push(...promptTextParts.slice(1, -1).map(redactSensitiveText))
+  const eventSearchText = eventTextParts.join("\n")
   return {
     platform,
     id,
@@ -62,22 +72,35 @@ export function jsonlSession(platform: string, path: string, fallbackId: string)
     usage,
     parent_id: parent,
     agent,
+    event_search_indexed: true,
+    ...(eventSearchText === ""
+      ? {}
+      : {
+          event_search_text: eventSearchText,
+          event_search_text_lower: eventSearchText.toLowerCase(),
+        }),
   }
 }
 
-function readJsonlRecords(path: string): readonly Record<string, unknown>[] {
+type JsonlRecord = {
+  readonly record: Record<string, unknown>
+  readonly text: string
+}
+
+function readJsonlRecords(path: string): readonly JsonlRecord[] {
   try {
-    const result: Record<string, unknown>[] = []
+    const result: JsonlRecord[] = []
     const text = readFileSync(path, "utf8")
     for (const line of text.split("\n")) {
-      if (line.trim() === "") {
+      const trimmed = line.trim()
+      if (trimmed === "") {
         continue
       }
       try {
-        const parsed: unknown = JSON.parse(line)
+        const parsed: unknown = JSON.parse(trimmed)
         const record = recordValue(parsed)
         if (record !== null) {
-          result.push(record)
+          result.push({ record, text: trimmed })
         }
       } catch (error) {
         if (error instanceof SyntaxError) {

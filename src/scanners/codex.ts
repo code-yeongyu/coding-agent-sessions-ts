@@ -7,6 +7,12 @@ import { unixSeconds } from "../time.js"
 import type { JsonMap, Session } from "../types.js"
 import { fallbackId, jsonlSession } from "./jsonl.js"
 
+const knownCodexHomeDirs = [
+  ".codex",
+  ".codex-local-gui-cli-remote",
+  ".codex-gui-cli-remote",
+  ".codex-gui-cli",
+] as const
 const threadsSql =
   "SELECT id, rollout_path, cwd, created_at, updated_at, model_provider, model, first_user_message, tokens_used, source, agent_nickname, agent_role FROM threads"
 const legacyThreadsSql =
@@ -20,7 +26,11 @@ export async function scanCodex(
 ): Promise<readonly Session[]> {
   const roots = rootsOnly
     ? existing(extraRoots)
-    : existing([process.env["CODEX_HOME"] ?? "", homePath(".codex"), ...extraRoots])
+    : existing([
+        process.env["CODEX_HOME"] ?? "",
+        ...knownCodexHomeDirs.map((name) => homePath(name)),
+        ...extraRoots,
+      ])
   const dbs = roots.flatMap((root) =>
     globFiles(
       root,

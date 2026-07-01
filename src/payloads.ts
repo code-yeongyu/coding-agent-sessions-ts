@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs"
 import { contentText, toSessionJson, userText } from "./content.js"
+import { eventMatchReasons, matchedEvents, snippet } from "./event-text.js"
 import { asMap, readJsonl } from "./json.js"
 import type {
   AnnotatedSession,
@@ -6,10 +8,13 @@ import type {
   Json,
   ListPayload,
   MatchReason,
+  ReadOptions,
   SearchPayload,
   SearchSession,
   Session,
 } from "./types.js"
+
+const defaultReadOptions: ReadOptions = { eventQueries: [], excerptChars: 240 }
 
 export function listPayload(
   filtered: readonly Session[],
@@ -39,12 +44,17 @@ export function searchPayload(
     ? filtered
     : filtered.filter((item) => item.parent_id === null)
   const perQuery = queries.map((query) => {
-    const matches = candidates
-      .flatMap((item) => {
-        const reasons = matchReasons(item, query)
-        return reasons.length === 0 ? [] : [{ item, reasons }]
-      })
-      .slice(0, limit)
+    const matches: { readonly item: Session; readonly reasons: readonly MatchReason[] }[] = []
+    for (const item of candidates) {
+      const reasons = matchReasons(item, query)
+      if (reasons.length === 0) {
+        continue
+      }
+      matches.push({ item, reasons })
+      if (matches.length >= limit) {
+        break
+      }
+    }
     return {
       query,
       count: matches.length,
@@ -67,12 +77,17 @@ export function searchPayload(
   }
 }
 
-export function getPayload(sessions: readonly Session[], ids: readonly string[]): GetPayload {
+export function getPayload(
+  sessions: readonly Session[],
+  ids: readonly string[],
+  opts: ReadOptions = defaultReadOptions,
+): GetPayload {
   const counts = childCounts(sessions)
   const results = sessions
     .filter((item) => ids.includes(item.id) || ids.some((id) => item.id.startsWith(id)))
     .map((item) => {
       const events = eventsFor(item)
+      const matches = matchedEvents(events, opts)
       const prompts = promptEdges(item, events)
       const children = sessions
         .filter((child) => child.platform === item.platform && child.parent_id === item.id)
@@ -87,7 +102,8 @@ export function getPayload(sessions: readonly Session[], ids: readonly string[])
           counts,
         ),
         prompts,
-        events,
+        events: opts.eventQueries.length === 0 ? events : [],
+        matched_events: matches,
         subagents: children.map((child) => annotate(child, counts)),
         detail_hint: detailHint(item),
       }
@@ -147,11 +163,33 @@ function detailHint(item: Session): string {
 
 function matchReasons(item: Session, query: string): readonly MatchReason[] {
   const needle = query.toLowerCase()
-  return searchFields(item).flatMap(([field, value]) =>
+  const fieldReasons = searchFields(item).flatMap(([field, value]) =>
     value.toLowerCase().includes(needle)
       ? [{ query, platform: item.platform, field, snippet: snippet(value, needle) }]
       : [],
   )
+  if (fieldReasons.length > 0) {
+    return fieldReasons
+  }
+  if (
+    item.event_search_text !== undefined &&
+    (item.event_search_text_lower ?? item.event_search_text.toLowerCase()).includes(needle)
+  ) {
+    return [
+      {
+        query,
+        platform: item.platform,
+        field: "event",
+        snippet: snippet(item.event_search_text, needle),
+      },
+    ]
+  }
+  if (item.event_search_indexed === true) {
+    return []
+  }
+  return item.path.endsWith(".jsonl") && fileContainsNeedle(item.path, needle)
+    ? eventMatchReasons(item, eventsFor(item), query, needle)
+    : []
 }
 
 function searchFields(item: Session): readonly (readonly [string, string])[] {
@@ -168,16 +206,22 @@ function searchFields(item: Session): readonly (readonly [string, string])[] {
   ]
 }
 
-function snippet(value: string, needle: string): string {
-  const start = Math.max(value.toLowerCase().indexOf(needle) - 60, 0)
-  return value.slice(start, Math.min(start + 160, value.length))
-}
-
 function eventsFor(item: Session): readonly Json[] {
   if (item.path.endsWith(".jsonl")) {
     return readJsonl(item.path)
   }
   return [{ type: "message", message: { role: "user", content: item.first_user_message } }]
+}
+
+function fileContainsNeedle(path: string, needle: string): boolean {
+  try {
+    return readFileSync(path, "utf8").toLowerCase().includes(needle)
+  } catch (error) {
+    if (error instanceof Error && "code" in error) {
+      return false
+    }
+    throw error
+  }
 }
 
 function promptEdges(
